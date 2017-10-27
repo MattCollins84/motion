@@ -3,7 +3,11 @@ const unpipe = require('unpipe');
 const WriteStream = require('stream').Writable;
 const MjpegCamera = require('mjpeg-camera');
 const cv = require('opencv');
+const glob = require("glob");
+const fs = require('fs');
 const image = require('../lib/image');
+const video = require('../lib/video');
+const utils = require('../lib/utils');
 
 // Create a new MjpegCamera object
 // TODO: Abstract away, and control when to stop/start the feed
@@ -35,6 +39,10 @@ const mjpegStream = function(req, res) {
   let ref = null;
   let frameId = 0;
 
+  // video ID
+  let videoID = null;
+  let videoFrame = 10000;
+
   // When we write to the WriteStream (i.e. each frame)
   ws._write = function(chunk, enc, next) {
     
@@ -54,20 +62,68 @@ const mjpegStream = function(req, res) {
         ref = frame.copy();
       }
       
+      // uncomment for face detection
       // detect any faces in the frame
-      image.detectFaces(frame, function(err, faces) {
+      // image.detectFaces(frame, function(err, faces) {
         
         // combine the detected differences and faces and draw the boxes
-        let boxes = differences.concat(faces);
+        let boxes = differences.concat(typeof faces === 'undefined' ? [] : faces);
         const outputFrame = image.drawBoxes(frame, boxes);
+        
+        // do we need to save anything? Trigger a new video
+        if (boxes.length && videoID === null) {
+          videoID = Date.now();
+        }
+
+        // nothing to record? Stop video and potentially save
+        if (boxes.length === 0) {
+          
+          // if we currently have a videoID, then try to create a video from the images
+          if (videoID) {
+            
+            let tempVideoId = videoID;
+            video.createFromImages(tempVideoId, function(err) {
+              
+              if (err) {
+                console.error(err);
+              }
+
+              // clean up after ourselves
+              utils.deleteFromGlob(`./videos/${tempVideoId}-*`, function(files) {
+                
+                let errors = files.filter(function(file) {
+                  return file.unlinked === false
+                });
+
+                if (errors.length) {
+                  console.error(errors);
+                }
+
+              });
+
+            });
+
+          }
+
+          videoID = null;
+          videoFrame = 10000;
+
+        }
+
+        if (videoID) {
+          outputFrame.save(`./videos/${videoID}-${videoFrame}.jpg`);
+          videoFrame++;
+        }
 
         // convert the outputFrame to a buffer and write to the response stream
         let buff = outputFrame.toBuffer();
         res.write(boundary + '\nContent-Type: image/jpeg\nContent-Length: '+ buff.length + '\n\n');
         res.write(buff);
-        next();
 
-      });
+        return next();
+      
+      // uncomment for face detection
+      // });
 
     });
     

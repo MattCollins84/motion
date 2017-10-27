@@ -14,10 +14,11 @@
     "express": "^4.16.2",
     "express-fileupload": "^0.3.0",
     "express-stream": "^0.8.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "glob": "^7.1.2",
     "mime-types": "^2.1.17",
     "mjpeg-camera": "^1.7.2",
     "opencv": "^6.0.0",
-    "optimist": "^0.6.1",
     "unpipe": "^1.0.0"
   }
 }
